@@ -2,47 +2,43 @@
 Database Schemas
 
 Define your MongoDB collection schemas here using Pydantic models.
-These schemas are used for data validation in your application.
+Each Pydantic model represents a collection (collection name = lowercase of class name).
 
-Each Pydantic model represents a collection in your database.
-Model name is converted to lowercase for the collection name:
-- User -> "user" collection
-- Product -> "product" collection
-- BlogPost -> "blogs" collection
+Collections for this app:
+- Office: each physical hub/office with map coordinates
+- Team: field staff associated with an office
+- Session: daily sessions conducted in villages
 """
-
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, EmailStr
 from typing import Optional
+import datetime as dt
 
-# Example schemas (replace with your own):
+class Office(BaseModel):
+    """Offices collection schema (collection name: "office")"""
+    name: str = Field(..., description="Office or hub name (e.g., Guntur HQ)")
+    address: Optional[str] = Field(None, description="Street address")
+    mandal: Optional[str] = Field(None, description="Mandal or region")
+    phone: Optional[str] = Field(None, description="Primary contact phone")
+    email: Optional[EmailStr] = Field(None, description="Contact email")
+    lat: float = Field(..., description="Latitude for map")
+    lng: float = Field(..., description="Longitude for map")
 
-class User(BaseModel):
-    """
-    Users collection schema
-    Collection name: "user" (lowercase of class name)
-    """
-    name: str = Field(..., description="Full name")
-    email: str = Field(..., description="Email address")
-    address: str = Field(..., description="Address")
-    age: Optional[int] = Field(None, ge=0, le=120, description="Age in years")
-    is_active: bool = Field(True, description="Whether user is active")
+class Team(BaseModel):
+    """Teams collection schema (collection name: "team")"""
+    name: str = Field(..., description="Team member name")
+    role: Optional[str] = Field(None, description="Role or title")
+    phone: Optional[str] = Field(None, description="Phone number")
+    email: Optional[EmailStr] = Field(None, description="Email address")
+    office_id: Optional[str] = Field(None, description="Related office id (string)")
 
-class Product(BaseModel):
-    """
-    Products collection schema
-    Collection name: "product" (lowercase of class name)
-    """
-    title: str = Field(..., description="Product title")
-    description: Optional[str] = Field(None, description="Product description")
-    price: float = Field(..., ge=0, description="Price in dollars")
-    category: str = Field(..., description="Product category")
-    in_stock: bool = Field(True, description="Whether product is in stock")
-
-# Add your own schemas here:
-# --------------------------------------------------
-
-# Note: The Flames database viewer will automatically:
-# 1. Read these schemas from GET /schema endpoint
-# 2. Use them for document validation when creating/editing
-# 3. Handle all database operations (CRUD) directly
-# 4. You don't need to create any database endpoints!
+class Session(BaseModel):
+    """Sessions collection schema (collection name: "session")"""
+    date: dt.date = Field(..., description="Session date (YYYY-MM-DD)")
+    village: str = Field(..., description="Village name")
+    start_time: Optional[str] = Field(None, description="Start time, local (e.g., 10:00)")
+    end_time: Optional[str] = Field(None, description="End time, local (e.g., 11:00)")
+    learners_count: int = Field(0, ge=0, description="Number of learners present")
+    status: str = Field("Scheduled", description="Status: Scheduled/Running/Completed/Cancelled")
+    team_id: Optional[str] = Field(None, description="Team member id (string)")
+    office_id: Optional[str] = Field(None, description="Office id (string)")
+    notes: Optional[str] = Field(None, description="Additional notes")

@@ -1,8 +1,14 @@
 import os
-from fastapi import FastAPI
+from datetime import date
+from typing import List, Optional
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
-app = FastAPI()
+from database import db, create_document, get_documents
+from schemas import Office, Team, Session
+
+app = FastAPI(title="Naitika Foundations API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -14,56 +20,80 @@ app.add_middleware(
 
 @app.get("/")
 def read_root():
-    return {"message": "Hello from FastAPI Backend!"}
-
-@app.get("/api/hello")
-def hello():
-    return {"message": "Hello from the backend API!"}
+    return {"message": "Naitika Foundations Backend Running"}
 
 @app.get("/test")
 def test_database():
-    """Test endpoint to check if database is available and accessible"""
-    response = {
+    resp = {
         "backend": "✅ Running",
         "database": "❌ Not Available",
-        "database_url": None,
-        "database_name": None,
-        "connection_status": "Not Connected",
         "collections": []
     }
-    
     try:
-        # Try to import database module
-        from database import db
-        
         if db is not None:
-            response["database"] = "✅ Available"
-            response["database_url"] = "✅ Configured"
-            response["database_name"] = db.name if hasattr(db, 'name') else "✅ Connected"
-            response["connection_status"] = "Connected"
-            
-            # Try to list collections to verify connectivity
+            resp["database"] = "✅ Connected"
             try:
-                collections = db.list_collection_names()
-                response["collections"] = collections[:10]  # Show first 10 collections
-                response["database"] = "✅ Connected & Working"
+                resp["collections"] = db.list_collection_names()
             except Exception as e:
-                response["database"] = f"⚠️  Connected but Error: {str(e)[:50]}"
-        else:
-            response["database"] = "⚠️  Available but not initialized"
-            
-    except ImportError:
-        response["database"] = "❌ Database module not found (run enable-database first)"
+                resp["database"] = f"⚠️ Connected but error: {str(e)[:80]}"
     except Exception as e:
-        response["database"] = f"❌ Error: {str(e)[:50]}"
-    
-    # Check environment variables
-    import os
-    response["database_url"] = "✅ Set" if os.getenv("DATABASE_URL") else "❌ Not Set"
-    response["database_name"] = "✅ Set" if os.getenv("DATABASE_NAME") else "❌ Not Set"
-    
-    return response
+        resp["database"] = f"❌ Error: {str(e)[:80]}"
+    return resp
 
+# --- Office Endpoints ---
+class OfficeOut(Office):
+    id: Optional[str] = None
+
+@app.post("/offices", response_model=dict)
+async def create_office(office: Office):
+    oid = create_document("office", office)
+    return {"id": oid}
+
+@app.get("/offices", response_model=List[dict])
+async def list_offices():
+    docs = get_documents("office")
+    # convert _id to string
+    return [{**{k: v for k, v in d.items() if k != "_id"}, "id": str(d.get("_id"))} for d in docs]
+
+# --- Team Endpoints ---
+@app.post("/teams", response_model=dict)
+async def create_team(team: Team):
+    tid = create_document("team", team)
+    return {"id": tid}
+
+@app.get("/teams", response_model=List[dict])
+async def list_teams():
+    docs = get_documents("team")
+    return [{**{k: v for k, v in d.items() if k != "_id"}, "id": str(d.get("_id"))} for d in docs]
+
+# --- Session Endpoints ---
+@app.post("/sessions", response_model=dict)
+async def create_session(session: Session):
+    sid = create_document("session", session)
+    return {"id": sid}
+
+@app.get("/sessions", response_model=List[dict])
+async def list_sessions(date_eq: Optional[date] = None, office_id: Optional[str] = None, status: Optional[str] = None):
+    filt = {}
+    if date_eq is not None:
+        filt["date"] = date_eq
+    if office_id is not None:
+        filt["office_id"] = office_id
+    if status is not None:
+        filt["status"] = status
+    docs = get_documents("session", filt)
+    return [{**{k: v for k, v in d.items() if k != "_id"}, "id": str(d.get("_id"))} for d in docs]
+
+@app.get("/schema")
+async def get_schema_info():
+    # The platform uses this to introspect schemas
+    return {
+        "schemas": {
+            "office": Office.model_json_schema(),
+            "team": Team.model_json_schema(),
+            "session": Session.model_json_schema(),
+        }
+    }
 
 if __name__ == "__main__":
     import uvicorn
